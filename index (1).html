@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b3d91">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>Asistencia – FAUSTINO PRE</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; font-family: Arial, Helvetica, sans-serif; }
+  html, body { height: 100%; background: #f2f4f7; color: #1d1d1f; overflow: hidden; }
+  .app { display: flex; flex-direction: column; height: 100dvh; }
+
+  /* --- Cámara: mitad superior --- */
+  #zonaCamara { position: relative; height: 50dvh; background: #000; overflow: hidden; flex: none; }
+  #lector { width: 100%; height: 100%; }
+  #lector video { width: 100% !important; height: 100% !important; object-fit: cover; }
+  #lector img, #lector__dashboard, #lector__header_message { display: none !important; }
+  #zonaCamara { transition: box-shadow .2s; }
+  .barraTop { position: absolute; top: 0; left: 0; right: 0; display: flex; justify-content: space-between; align-items: center;
+              padding: 10px 12px; color: #fff; font-size: 14px; background: linear-gradient(rgba(0,0,0,.55), rgba(0,0,0,0)); }
+  .barraTop b { font-size: 15px; }
+  .btnIcono { background: rgba(255,255,255,.2); color: #fff; border: 0; border-radius: 20px; padding: 7px 12px; font-size: 14px; }
+  #avisoCam { position: absolute; bottom: 10px; left: 0; right: 0; text-align: center; color: #fff; font-size: 14px; }
+
+  /* --- Información: mitad inferior --- */
+  .info { flex: 1; overflow-y: auto; padding: 12px; }
+  #resultado { border-radius: 16px; padding: 16px; text-align: center; background: #fff; min-height: 128px;
+               box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+  #resultado .estado { font-size: 20px; font-weight: bold; letter-spacing: .5px; }
+  #resultado .nombre { font-size: 24px; font-weight: bold; margin: 6px 0 4px; }
+  #resultado .detalle { font-size: 15px; color: #555; }
+  .espera { color: #888; } .ok { background: #e6f4ea !important; color: #137333; } .tarde { background: #fef7e0 !important; color: #b06000; }
+  .rep { background: #e8f0fe !important; color: #1967d2; } .error { background: #fce8e6 !important; color: #c5221f; }
+  .stats { display: flex; gap: 8px; margin: 10px 0; }
+  .stat { flex: 1; background: #fff; border-radius: 12px; padding: 8px; text-align: center; font-size: 12px; color: #666; }
+  .stat b { display: block; font-size: 20px; color: #1d1d1f; }
+  .lista { background: #fff; border-radius: 12px; padding: 4px 12px; }
+  .lista h3 { font-size: 14px; padding: 8px 0; color: #444; }
+  .fila { display: flex; justify-content: space-between; gap: 8px; padding: 8px 0; border-top: 1px solid #eee; font-size: 14px; }
+  .fila span:last-child { white-space: nowrap; font-weight: bold; }
+  .p { color: #137333; } .t { color: #b06000; } .r { color: #1967d2; } .q { color: #888; }
+
+  /* --- Configuración --- */
+  #config { position: fixed; inset: 0; background: #f2f4f7; padding: 24px 18px; overflow-y: auto; display: none; z-index: 10; }
+  #config h1 { font-size: 22px; margin-bottom: 4px; } #config p { color: #666; margin-bottom: 18px; font-size: 14px; }
+  label { display: block; font-size: 13px; color: #444; margin: 12px 0 4px; }
+  input, select { width: 100%; font-size: 18px; padding: 12px; border: 2px solid #ccd; border-radius: 10px; background: #fff; }
+  .btn { width: 100%; font-size: 17px; padding: 14px; border: 0; border-radius: 10px; background: #0b3d91; color: #fff; margin-top: 18px; }
+  .btn.sec { background: #e3e6eb; color: #1d1d1f; }
+  #msgConfig { margin-top: 12px; font-size: 14px; color: #c5221f; min-height: 18px; }
+</style>
+</head>
+<body>
+<div class="app">
+  <div id="zonaCamara">
+    <div id="lector"></div>
+    <div class="barraTop">
+      <div><b>FAUSTINO PRE</b><br><span id="sedeTxt">—</span> · <span id="red">en línea</span></div>
+      <button class="btnIcono" onclick="abrirConfig()">⚙ Ajustes</button>
+    </div>
+    <div id="avisoCam">Apunte al QR del carnet</div>
+  </div>
+
+  <div class="info">
+    <div id="resultado" class="espera">
+      <div class="estado">LISTO PARA ESCANEAR</div>
+      <div class="nombre"></div>
+      <div class="detalle">El resultado aparecerá aquí</div>
+    </div>
+    <div class="stats">
+      <div class="stat"><b id="sTotal">0</b>Marcaron hoy</div>
+      <div class="stat"><b id="sTarde">0</b>Tardanzas (aquí)</div>
+      <div class="stat"><b id="sPend">0</b>Por enviar</div>
+    </div>
+    <div class="lista"><h3>Últimas marcas en este celular</h3><div id="lista"></div></div>
+  </div>
+</div>
+
+<div id="config">
+  <h1>Configurar este celular</h1>
+  <p>Solo se hace una vez por equipo.</p>
+  <label>Enlace del sistema</label>
+  <input id="cUrl" autocomplete="off">
+  <label>PIN</label>
+  <input id="cPin" type="password" inputmode="numeric" autocomplete="off" oninput="clearTimeout(window._tp); if (this.value.trim().length >= 4) window._tp = setTimeout(probar, 600);">
+  <button class="btn sec" onclick="probar()">Verificar PIN</button>
+  <label>Sede</label>
+  <select id="cSede"><option value="">Primero verifique el PIN</option></select>
+  <div id="msgConfig"></div>
+  <button class="btn" onclick="guardarConfig()">Guardar y empezar</button>
+</div>
+
+<script src="html5-qrcode.min.js"></script>
+<script>
+  var URL_DEFECTO = 'https://script.google.com/macros/s/AKfycbwsRRN_VRjvOcbm7_psltg5IQKuL8STk57JVi5p0VwLvmT01YVQLV21KplNwYMq2nyLTA/exec';
+  var cfg = leer('cfg', null);
+  var cola = leer('cola', []);
+  var hoyLocal = leer('hoy', { fecha: '', tardes: 0, lista: [] });
+  var escaner = null, ocupado = false, ultimo = { c: '', t: 0 };
+
+  function leer(k, d) { try { var v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch (e) { return d; } }
+  function guardar(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+  function $(id) { return document.getElementById(id); }
+  function fechaHoy() { var d = new Date(); return d.getFullYear() + '-' + (d.getMonth() + 1) + '-' + d.getDate(); }
+
+  function extraer(t) {
+    t = String(t || '');
+    var m = t.match(/[?&]c=(\d{8})/) || t.match(/^\s*(\d{8})\s*$/);
+    return m ? m[1] : '';
+  }
+
+  function api(params) {
+    var q = Object.keys(params).map(function (k) { return k + '=' + encodeURIComponent(params[k]); }).join('&');
+    return fetch(cfg.url + '?' + q, { method: 'GET', redirect: 'follow', cache: 'no-store' })
+      .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); });
+  }
+
+  /* ---------- Configuración ---------- */
+  function abrirConfig() {
+    detener();
+    $('cUrl').value = (cfg && cfg.url) || URL_DEFECTO;
+    $('cPin').value = (cfg && cfg.pin) || '';
+    $('config').style.display = 'block';
+    if (cfg) llenarSedes(cfg.sedes || [cfg.sede], cfg.sede);
+  }
+  function llenarSedes(sedes, elegida) {
+    var s = $('cSede'); s.innerHTML = '';
+    (sedes && sedes.length ? sedes : ['Principal']).forEach(function (x) {
+      var o = document.createElement('option'); o.textContent = x; if (x === elegida) o.selected = true; s.appendChild(o);
+    });
+  }
+  function probar() {
+    $('msgConfig').textContent = 'Verificando…';
+    var tmp = { url: $('cUrl').value.trim(), pin: $('cPin').value.trim() };
+    var anterior = cfg; cfg = tmp;
+    api({ accion: 'info', pin: tmp.pin }).then(function (r) {
+      cfg = anterior;
+      if (!r.ok) { $('msgConfig').textContent = 'PIN incorrecto'; return; }
+      llenarSedes(r.sedes, anterior && anterior.sede);
+      $('cSede').dataset.sedes = JSON.stringify(r.sedes || []);
+      $('msgConfig').style.color = '#137333';
+      $('msgConfig').textContent = 'PIN correcto · Ciclo ' + r.ciclo + ' · inicio ' + r.inicio;
+    }).catch(function (e) { cfg = anterior; $('msgConfig').textContent = 'No se pudo conectar: ' + e.message; });
+  }
+  function guardarConfig() {
+    var sede = $('cSede').value;
+    if (!sede || sede.indexOf('Primero') === 0) { probar(); return; }
+    cfg = { url: $('cUrl').value.trim(), pin: $('cPin').value.trim(), sede: sede,
+            sedes: $('cSede').dataset.sedes ? JSON.parse($('cSede').dataset.sedes) : ((cfg && cfg.sedes) || [sede]) };
+    guardar('cfg', cfg);
+    $('config').style.display = 'none';
+    iniciar();
+  }
+
+  /* ---------- Cámara ---------- */
+  function iniciar() {
+    $('sedeTxt').textContent = cfg.sede;
+    if (hoyLocal.fecha !== fechaHoy()) { hoyLocal = { fecha: fechaHoy(), tardes: 0, lista: [] }; guardar('hoy', hoyLocal); }
+    pintarLista(); pintarStats();
+    api({ accion: 'info', pin: cfg.pin }).then(function (r) { if (r.ok) $('sTotal').textContent = r.total; }).catch(function () {});
+    escaner = new Html5Qrcode('lector', { verbose: false });
+    escaner.start({ facingMode: 'environment' },
+      { fps: 12, qrbox: function (w, h) { var m = Math.floor(Math.min(w, h) * 0.7); return { width: m, height: m }; } },
+      leido, function () {})
+      .then(function () { $('avisoCam').textContent = 'Apunte al QR del carnet'; mantenerPantalla(); })
+      .catch(function (e) { $('avisoCam').textContent = 'No se pudo abrir la cámara. Revise el permiso en Ajustes del celular.'; });
+  }
+  function detener() { if (escaner) { try { escaner.stop().then(function () { escaner.clear(); }); } catch (e) {} escaner = null; } }
+
+  function mantenerPantalla() { try { if (navigator.wakeLock) navigator.wakeLock.request('screen').catch(function () {}); } catch (e) {} }
+  document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') mantenerPantalla(); });
+
+  function leido(texto) {
+    if (ocupado) return;
+    var c = extraer(texto);
+    var ahora = Date.now();
+    if (!c) { mostrar('error', 'QR NO RECONOCIDO', '', 'No es un carnet de FAUSTINO PRE'); sonar(false); pausa(1500); return; }
+    if (c === ultimo.c && ahora - ultimo.t < 20000) return; // mismo carnet todavía frente a la cámara
+    ultimo = { c: c, t: ahora };
+    ocupado = true;
+    sonar(true);
+    mostrar('espera', 'REGISTRANDO…', '', 'Código ' + c);
+    api({ accion: 'marcar', codigo: c, pin: cfg.pin, sede: cfg.sede, t: ahora })
+      .then(function (r) { respuesta(r); })
+      .catch(function () {
+        cola.push({ c: c, t: ahora }); guardar('cola', cola); pintarStats();
+        mostrar('tarde', 'GUARDADO SIN INTERNET', 'Código ' + c, 'Se enviará solo cuando vuelva la señal');
+        agregarFila(c, 'Pendiente', 'q');
+      })
+      .then(function () { pausa(1500); });
+  }
+  function pausa(ms) { ocupado = true; setTimeout(function () { ocupado = false; $('zonaCamara').style.boxShadow = 'none'; }, ms); }
+
+  function respuesta(r) {
+    if (!r.ok) { mostrar('error', r.msg || 'ERROR', '', ''); sonar(false); return; }
+    $('sTotal').textContent = r.total;
+    if (r.repetido) { mostrar('rep', 'YA MARCÓ HOY', r.nombre, 'Registrado a las ' + r.hora.slice(0, 5)); agregarFila(r.nombre, 'Ya marcó', 'r'); return; }
+    var tarde = r.estado === 'TARDE';
+    if (tarde) { hoyLocal.tardes++; guardar('hoy', hoyLocal); }
+    mostrar(tarde ? 'tarde' : 'ok', tarde ? 'TARDE  +' + r.minTarde + ' min' : 'PUNTUAL', r.nombre, r.codigo + ' · ' + r.hora.slice(0, 5) + ' · ' + cfg.sede);
+    agregarFila(r.nombre, (tarde ? 'Tarde ' : 'Puntual ') + r.hora.slice(0, 5), tarde ? 't' : 'p');
+    pintarStats();
+  }
+
+  function mostrar(clase, estado, nombre, detalle) {
+    var r = $('resultado'); r.className = clase;
+    r.innerHTML = '<div class="estado"></div><div class="nombre"></div><div class="detalle"></div>';
+    r.children[0].textContent = estado; r.children[1].textContent = nombre; r.children[2].textContent = detalle;
+    var color = { ok: '#34a853', tarde: '#fbbc04', error: '#ea4335', rep: '#4285f4' }[clase];
+    $('zonaCamara').style.boxShadow = color ? 'inset 0 0 0 8px ' + color : 'none';
+  }
+  function agregarFila(nombre, estado, clase) {
+    hoyLocal.lista.unshift({ n: nombre, e: estado, k: clase });
+    hoyLocal.lista = hoyLocal.lista.slice(0, 30); guardar('hoy', hoyLocal); pintarLista();
+  }
+  function pintarLista() {
+    var l = $('lista'); l.innerHTML = '';
+    hoyLocal.lista.forEach(function (x) {
+      var d = document.createElement('div'); d.className = 'fila';
+      d.innerHTML = '<span></span><span></span>';
+      d.children[0].textContent = x.n; d.children[1].textContent = x.e; d.children[1].className = x.k;
+      l.appendChild(d);
+    });
+  }
+  function pintarStats() { $('sTarde').textContent = hoyLocal.tardes; $('sPend').textContent = cola.length; }
+
+  function sonar(bien) {
+    try { if (navigator.vibrate) navigator.vibrate(bien ? 120 : [80, 60, 80]); } catch (e) {}
+    try {
+      var ctx = new (window.AudioContext || window.webkitAudioContext)();
+      var o = ctx.createOscillator(); o.frequency.value = bien ? 1000 : 240;
+      o.connect(ctx.destination); o.start(); o.stop(ctx.currentTime + (bien ? 0.12 : 0.45));
+    } catch (e) {}
+  }
+
+  /* ---------- Envío de marcas guardadas sin internet ---------- */
+  function enviarCola() {
+    if (!cfg || !cola.length || enviarCola.enCurso) return;
+    enviarCola.enCurso = true;
+    var item = cola[0];
+    api({ accion: 'marcar', codigo: item.c, pin: cfg.pin, sede: cfg.sede, t: item.t })
+      .then(function () { cola.shift(); guardar('cola', cola); pintarStats(); })
+      .catch(function () {})
+      .then(function () { enviarCola.enCurso = false; if (cola.length && navigator.onLine) setTimeout(enviarCola, 800); });
+  }
+  setInterval(enviarCola, 20000);
+  window.addEventListener('online', function () { $('red').textContent = 'en línea'; enviarCola(); });
+  window.addEventListener('offline', function () { $('red').textContent = 'SIN INTERNET'; });
+  if (!navigator.onLine) $('red').textContent = 'SIN INTERNET';
+
+  if ('serviceWorker' in navigator) { navigator.serviceWorker.register('sw.js').catch(function () {}); }
+
+  if (cfg && cfg.pin && cfg.sede) { iniciar(); enviarCola(); } else { abrirConfig(); }
+</script>
+</body>
+</html>
